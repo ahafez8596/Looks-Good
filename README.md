@@ -23,7 +23,7 @@ A VS Code extension for live HTML preview with visual editing capabilities.
 
 ### From VSIX
 
-Install the extension from [HERE](marketplace.visualstudio.com/items?itemName=Abdelaziz-Hafez.looks-good).
+Install the extension from [HERE](https://marketplace.visualstudio.com/items?itemName=Abdelaziz-Hafez.looks-good).
 
 ### From Source
 
