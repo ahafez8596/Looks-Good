@@ -1,0 +1,179 @@
+{
+  "name": "looks-good",
+  "displayName": "Looks Good",
+  "description": "Live HTML preview with visual editing capabilities. Edit HTML elements visually, see real-time updates, and sync selections between editor and preview.",
+  "version": "1.1.0",
+  "publisher": "Abdelaziz-Hafez",
+  "author": {
+    "name": "Abdelaziz Hafez"
+  },
+  "license": "MIT",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ahafez8596/Looks-Good"
+  },
+  "bugs": {
+    "url": "https://github.com/ahafez8596/Looks-Good/issues"
+  },
+  "homepage": "https://github.com/ahafez8596/Looks-Good#readme",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Visualization"
+  ],
+  "keywords": [
+    "html",
+    "preview",
+    "live",
+    "visual",
+    "editor",
+    "wysiwyg"
+  ],
+  "activationEvents": [
+    "onLanguage:html"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "looksGood.openPreview",
+        "title": "Open Preview",
+        "category": "Looks Good",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "looksGood.openPreviewToSide",
+        "title": "Open Preview to the Side",
+        "category": "Looks Good",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "looksGood.refresh",
+        "title": "Refresh Preview",
+        "category": "Looks Good",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "looksGood.zoomIn",
+        "title": "Zoom In",
+        "category": "Looks Good",
+        "icon": "$(zoom-in)"
+      },
+      {
+        "command": "looksGood.zoomOut",
+        "title": "Zoom Out",
+        "category": "Looks Good",
+        "icon": "$(zoom-out)"
+      },
+      {
+        "command": "looksGood.resetZoom",
+        "title": "Reset Zoom",
+        "category": "Looks Good"
+      },
+      {
+        "command": "looksGood.openDevTools",
+        "title": "Open DevTools",
+        "category": "Looks Good",
+        "icon": "$(tools)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "when": "editorLangId == html",
+          "command": "looksGood.openPreviewToSide",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "when": "editorLangId == html",
+          "command": "looksGood.openPreview",
+          "group": "navigation"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "looksGood.openPreviewToSide",
+        "key": "ctrl+shift+v",
+        "mac": "cmd+shift+v",
+        "when": "editorLangId == html"
+      },
+      {
+        "command": "looksGood.zoomIn",
+        "key": "ctrl+=",
+        "mac": "cmd+=",
+        "when": "looksGoodPreviewFocus"
+      },
+      {
+        "command": "looksGood.zoomOut",
+        "key": "ctrl+-",
+        "mac": "cmd+-",
+        "when": "looksGoodPreviewFocus"
+      },
+      {
+        "command": "looksGood.resetZoom",
+        "key": "ctrl+0",
+        "mac": "cmd+0",
+        "when": "looksGoodPreviewFocus"
+      }
+    ],
+    "configuration": {
+      "title": "Looks Good",
+      "properties": {
+        "looksGood.autoRefresh": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically refresh the preview when the document changes."
+        },
+        "looksGood.refreshDelay": {
+          "type": "number",
+          "default": 100,
+          "minimum": 50,
+          "maximum": 2000,
+          "description": "Delay in milliseconds before refreshing the preview after a change."
+        },
+        "looksGood.defaultZoom": {
+          "type": "number",
+          "default": 100,
+          "minimum": 25,
+          "maximum": 400,
+          "description": "Default zoom level for the preview (percentage)."
+        },
+        "looksGood.syncScroll": {
+          "type": "boolean",
+          "default": true,
+          "description": "Synchronize scrolling between editor and preview."
+        },
+        "looksGood.showCssPanel": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the CSS property panel when an element is selected."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "eslint": "^8.54.0",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.3.2",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4"
+  }
+}

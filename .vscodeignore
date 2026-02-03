@@ -1,0 +1,33 @@
+# Source files (compiled to dist/)
+src/
+out/
+
+# Development files
+.vscode/
+.vscode-test/
+node_modules/
+
+# Config files
+tsconfig.json
+webpack.config.js
+.eslintrc.json
+.prettierrc
+
+# Git
+.git/
+.gitignore
+.github/
+
+# Test files
+test.html
+**/*.test.ts
+**/*.test.js
+
+# Build artifacts not needed
+*.vsix
+
+# Misc
+.DS_Store
+Thumbs.db
+*.log
+*.map
