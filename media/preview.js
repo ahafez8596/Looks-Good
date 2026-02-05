@@ -48,6 +48,60 @@
     const btnRedo = document.getElementById('btn-redo');
     const btnDevtools = document.getElementById('btn-devtools');
 
+    /**
+     * Sanitize HTML to prevent XSS attacks
+     * Removes dangerous elements and event handlers while preserving structure for preview
+     * @param {string} html - The HTML string to sanitize
+     * @returns {string} - Sanitized HTML string
+     */
+    function sanitizeHtml(html) {
+        // Create a temporary container to parse the HTML
+        const template = document.createElement('template');
+        template.innerHTML = html;
+        const doc = template.content;
+
+        // Remove dangerous elements
+        const dangerousTags = ['script', 'iframe', 'object', 'embed', 'form'];
+        dangerousTags.forEach(tag => {
+            doc.querySelectorAll(tag).forEach(el => el.remove());
+        });
+
+        // Remove inline event handlers (onclick, onerror, onload, etc.)
+        doc.querySelectorAll('*').forEach(el => {
+            Array.from(el.attributes).forEach(attr => {
+                if (attr.name.startsWith('on')) {
+                    el.removeAttribute(attr.name);
+                }
+            });
+            // Remove javascript: URLs
+            if (el.hasAttribute('href') && el.getAttribute('href')?.toLowerCase().startsWith('javascript:')) {
+                el.setAttribute('href', '#');
+            }
+            if (el.hasAttribute('src') && el.getAttribute('src')?.toLowerCase().startsWith('javascript:')) {
+                el.removeAttribute('src');
+            }
+        });
+
+        // Serialize back to string
+        const serializer = new XMLSerializer();
+        let result = '';
+        doc.childNodes.forEach(node => {
+            result += serializer.serializeToString(node);
+        });
+        return result;
+    }
+
+    /**
+     * Escape HTML entities to prevent injection
+     * @param {string} str - The string to escape
+     * @returns {string} - Escaped string
+     */
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
     // Initialize
     function init() {
         setupToolbarEvents();
@@ -201,7 +255,11 @@
             elementInfo.textContent = '';
         }
         if (cssProperties) {
-            cssProperties.innerHTML = '<p class="no-selection">Select an element to edit its styles</p>';
+            cssProperties.textContent = '';
+            const noSelection = document.createElement('p');
+            noSelection.className = 'no-selection';
+            noSelection.textContent = 'Select an element to edit its styles';
+            cssProperties.appendChild(noSelection);
         }
     }
 
@@ -251,6 +309,9 @@
         // Inject source line markers, unique IDs, and styles
         const processedHtml = injectLineMarkersAndIds(resolvedHtml);
 
+        // Sanitize HTML to prevent XSS attacks (removes scripts, event handlers, etc.)
+        const sanitizedHtml = sanitizeHtml(processedHtml);
+
         // Create or get Shadow DOM root for style isolation
         if (!shadowRoot) {
             shadowRoot = previewContent.attachShadow({ mode: 'open' });
@@ -285,7 +346,7 @@
         cursor: default;
     }
 </style>
-${processedHtml}`;
+${sanitizedHtml}`;
 
         // Update shadow DOM content
         shadowRoot.innerHTML = fullHtml;
@@ -641,36 +702,60 @@ ${processedHtml}`;
             'Spacing': ['gap', 'flex-direction', 'justify-content', 'align-items']
         };
 
-        let html = '';
+        // Clear existing content safely
+        cssProperties.textContent = '';
 
+        // Build DOM elements instead of using innerHTML
         for (const [category, properties] of Object.entries(cssCategories)) {
-            html += `<div class="css-category">${category}</div>`;
+            const categoryDiv = document.createElement('div');
+            categoryDiv.className = 'css-category';
+            categoryDiv.textContent = category;
+            cssProperties.appendChild(categoryDiv);
 
             for (const prop of properties) {
                 const value = computedStyle.getPropertyValue(prop);
                 const isColor = prop.includes('color');
 
+                const propertyDiv = document.createElement('div');
+                propertyDiv.className = 'css-property';
+
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'css-property-name';
+                nameSpan.textContent = prop;
+                propertyDiv.appendChild(nameSpan);
+
                 if (isColor) {
-                    html += `
-            <div class="css-property">
-              <span class="css-property-name">${prop}</span>
-              <div class="css-property-color">
-                <input type="color" value="${rgbToHex(value)}" data-property="${prop}">
-                <input type="text" class="css-property-value" value="${value}" data-property="${prop}">
-              </div>
-            </div>`;
+                    const colorDiv = document.createElement('div');
+                    colorDiv.className = 'css-property-color';
+
+                    const colorInput = document.createElement('input');
+                    colorInput.type = 'color';
+                    colorInput.value = rgbToHex(value);
+                    colorInput.dataset.property = prop;
+                    colorDiv.appendChild(colorInput);
+
+                    const textInput = document.createElement('input');
+                    textInput.type = 'text';
+                    textInput.className = 'css-property-value';
+                    textInput.value = value;
+                    textInput.dataset.property = prop;
+                    colorDiv.appendChild(textInput);
+
+                    propertyDiv.appendChild(colorDiv);
                 } else {
-                    html += `
-            <div class="css-property">
-              <span class="css-property-name">${prop}</span>
-              <input type="text" class="css-property-value" value="${value}" data-property="${prop}">
-            </div>`;
+                    const textInput = document.createElement('input');
+                    textInput.type = 'text';
+                    textInput.className = 'css-property-value';
+                    textInput.value = value;
+                    textInput.dataset.property = prop;
+                    propertyDiv.appendChild(textInput);
                 }
+
+                cssProperties.appendChild(propertyDiv);
             }
         }
 
-        cssProperties.innerHTML = html;
-
+        // Add event listeners to all inputs
         cssProperties.querySelectorAll('input').forEach(input => {
             input.addEventListener('change', (e) => {
                 const target = e.target;
