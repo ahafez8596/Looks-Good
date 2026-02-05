@@ -32,8 +32,9 @@
     const elementSourceMap = new Map();
 
     // DOM Elements
-    const iframe = document.getElementById('preview-iframe');
+    const previewContent = document.getElementById('preview-content');
     const previewFrame = document.getElementById('preview-frame');
+    let shadowRoot = null; // Shadow DOM root for style isolation
     const zoomDisplay = document.getElementById('zoom-level');
     const elementInfo = document.querySelector('.element-info .element-tag');
     const cssPanel = document.getElementById('css-panel');
@@ -165,10 +166,11 @@
 
     function setZoom(level) {
         zoomLevel = Math.max(25, Math.min(400, level));
-        if (iframe) {
-            iframe.style.transform = `scale(${zoomLevel / 100})`;
-            iframe.style.width = `${10000 / zoomLevel}%`;
-            iframe.style.height = `${10000 / zoomLevel}%`;
+        if (previewContent) {
+            previewContent.style.transform = `scale(${zoomLevel / 100})`;
+            previewContent.style.transformOrigin = 'top left';
+            previewContent.style.width = `${10000 / zoomLevel}%`;
+            previewContent.style.height = `${10000 / zoomLevel}%`;
         }
         if (zoomDisplay) {
             zoomDisplay.textContent = `${zoomLevel}%`;
@@ -238,62 +240,94 @@
     }
 
     function updatePreview(html, base) {
-        if (!iframe) return;
+        if (!previewContent) return;
 
         // Clear element source map
         elementSourceMap.clear();
 
-        // Inject source line markers, unique IDs, and styles
-        const processedHtml = injectLineMarkersAndIds(html);
+        // Resolve relative URLs to absolute WebView URIs
+        const resolvedHtml = resolveRelativeUrls(html, base);
 
-        // Create blob URL for the content
+        // Inject source line markers, unique IDs, and styles
+        const processedHtml = injectLineMarkersAndIds(resolvedHtml);
+
+        // Create or get Shadow DOM root for style isolation
+        if (!shadowRoot) {
+            shadowRoot = previewContent.attachShadow({ mode: 'open' });
+        }
+
+        // Build the content with selection styles
         const fullHtml = `
-<!DOCTYPE html>
-<html>
-<head>
-  <base href="${base}/">
-  <style>
+<style>
     .looks-good-selected {
-      outline: 2px solid #007acc !important;
-      outline-offset: 1px !important;
-      cursor: pointer;
+        outline: 2px solid #007acc !important;
+        outline-offset: 1px !important;
+        cursor: pointer;
     }
     .looks-good-hover {
-      outline: 1px dashed #007acc !important;
-      outline-offset: 1px !important;
-      cursor: pointer;
+        outline: 1px dashed #007acc !important;
+        outline-offset: 1px !important;
+        cursor: pointer;
     }
     .looks-good-dragging {
-      opacity: 0.5 !important;
+        opacity: 0.5 !important;
     }
     .looks-good-drop-target {
-      outline: 2px dashed #28a745 !important;
-      outline-offset: 2px !important;
+        outline: 2px dashed #28a745 !important;
+        outline-offset: 2px !important;
     }
     .looks-good-editing {
-      outline: 2px solid #ffc107 !important;
-      outline-offset: 1px !important;
-      cursor: text !important;
+        outline: 2px solid #ffc107 !important;
+        outline-offset: 1px !important;
+        cursor: text !important;
     }
     * {
-      cursor: default;
+        cursor: default;
     }
-  </style>
-</head>
-<body>
-${processedHtml}
-</body>
-</html>`;
+</style>
+${processedHtml}`;
 
-        const blob = new Blob([fullHtml], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
+        // Update shadow DOM content
+        shadowRoot.innerHTML = fullHtml;
 
-        iframe.onload = () => {
-            URL.revokeObjectURL(url);
-            setupIframeEvents();
-        };
+        // Setup events on the shadow DOM content
+        setupPreviewEvents();
+    }
 
-        iframe.src = url;
+    // Resolve relative URLs (src, href) to absolute WebView URIs
+    function resolveRelativeUrls(html, base) {
+        if (!base) return html;
+
+        // Match src="..." and href="..." attributes
+        // Handles: src="path", src='path', href="path", href='path'
+        return html.replace(
+            /((?:src|href)\s*=\s*)(["'])((?:(?!\2).)*)\2/gi,
+            (match, attr, quote, path) => {
+                // Skip empty paths
+                if (!path || path.trim() === '') {
+                    return match;
+                }
+
+                // Skip data URIs, blob URLs, anchors, javascript, mailto, tel
+                if (/^(data:|blob:|#|javascript:|mailto:|tel:)/i.test(path)) {
+                    return match;
+                }
+
+                // Skip absolute URLs (http://, https://, //)
+                if (/^(https?:)?\/\//i.test(path)) {
+                    return match;
+                }
+
+                // Skip absolute paths starting with /
+                if (path.startsWith('/')) {
+                    return match;
+                }
+
+                // Construct absolute URL for relative paths
+                const absoluteUrl = `${base}/${path}`;
+                return `${attr}${quote}${absoluteUrl}${quote}`;
+            }
+        );
     }
 
     function injectLineMarkersAndIds(html) {
@@ -373,40 +407,39 @@ ${processedHtml}
         return result;
     }
 
-    function setupIframeEvents() {
-        const iframeDoc = iframe?.contentDocument;
-        if (!iframeDoc) return;
+    function setupPreviewEvents() {
+        if (!shadowRoot) return;
 
         // Click to select element
-        iframeDoc.addEventListener('click', (e) => {
+        shadowRoot.addEventListener('click', (e) => {
             if (isEditingText) return;
 
             e.preventDefault();
             e.stopPropagation();
 
             const target = e.target;
-            if (target && target !== iframeDoc.body && target !== iframeDoc.documentElement) {
+            if (target && target !== shadowRoot.host) {
                 selectElement(target);
             }
         });
 
         // Double-click to edit text
-        iframeDoc.addEventListener('dblclick', (e) => {
+        shadowRoot.addEventListener('dblclick', (e) => {
             e.preventDefault();
             e.stopPropagation();
 
             const target = e.target;
-            if (target && target !== iframeDoc.body && target !== iframeDoc.documentElement) {
+            if (target && target !== shadowRoot.host) {
                 startInlineEditing(target);
             }
         });
 
         // Hover to highlight
-        iframeDoc.addEventListener('mouseover', (e) => {
+        shadowRoot.addEventListener('mouseover', (e) => {
             if (isEditingText) return;
 
             const target = e.target;
-            if (target && target !== iframeDoc.body && target !== iframeDoc.documentElement) {
+            if (target && target !== shadowRoot.host) {
                 if (hoveredElement && hoveredElement !== selectedElement) {
                     hoveredElement.classList.remove('looks-good-hover');
                 }
@@ -417,16 +450,18 @@ ${processedHtml}
             }
         });
 
-        iframeDoc.addEventListener('mouseout', (e) => {
+        shadowRoot.addEventListener('mouseout', (e) => {
             if (hoveredElement && hoveredElement !== selectedElement) {
                 hoveredElement.classList.remove('looks-good-hover');
                 hoveredElement = null;
             }
         });
 
-        // Keyboard events in iframe
-        iframeDoc.addEventListener('keydown', (e) => {
-            handleKeyDown(e);
+        // Keyboard events for copy/cut/paste in shadow DOM
+        // Note: We need to listen on document since shadow DOM doesn't bubble keydown properly
+        document.addEventListener('keydown', (e) => {
+            // Only handle if we have focus in the preview area
+            if (!selectedElement && !isEditingText) return;
 
             // Handle copy/cut/paste only when not editing text
             if (!isEditingText && (e.ctrlKey || e.metaKey)) {
@@ -436,7 +471,7 @@ ${processedHtml}
                 } else if (e.code === 'KeyX' && selectedElement) {
                     e.preventDefault();
                     copyElement(true);
-                } else if (e.code === 'KeyV') {
+                } else if (e.code === 'KeyV' && selectedElement) {
                     e.preventDefault();
                     pasteElement();
                 }
@@ -444,9 +479,14 @@ ${processedHtml}
         }, true);
 
         // Setup drag and drop for all tagged elements
-        iframeDoc.querySelectorAll('[data-lg-id]').forEach(el => {
-            setupDragEvents(el, iframeDoc);
+        shadowRoot.querySelectorAll('[data-lg-id]').forEach(el => {
+            setupDragEvents(el, shadowRoot);
         });
+    }
+
+    // Keep setupIframeEvents as alias for backwards compatibility
+    function setupIframeEvents() {
+        setupPreviewEvents();
     }
 
     // Inline text editing
@@ -471,7 +511,7 @@ ${processedHtml}
         // Select all text
         const range = document.createRange();
         range.selectNodeContents(element);
-        const selection = iframe?.contentWindow?.getSelection();
+        const selection = window.getSelection();
         selection?.removeAllRanges();
         selection?.addRange(range);
 
@@ -561,10 +601,9 @@ ${processedHtml}
     }
 
     function selectElementByLine(line, column) {
-        const iframeDoc = iframe?.contentDocument;
-        if (!iframeDoc) return;
+        if (!shadowRoot) return;
 
-        const element = iframeDoc.querySelector(`[data-lg-line="${line}"]`);
+        const element = shadowRoot.querySelector(`[data-lg-line="${line}"]`);
         if (element) {
             selectElement(element);
             element.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -591,7 +630,7 @@ ${processedHtml}
     function updateCssPanel(element) {
         if (!cssProperties || !config.showCssPanel) return;
 
-        const computedStyle = iframe?.contentWindow?.getComputedStyle(element);
+        const computedStyle = window.getComputedStyle(element);
         if (!computedStyle) return;
 
         const cssCategories = {
@@ -685,17 +724,22 @@ ${processedHtml}
     function pasteElement() {
         if (!clipboardElement || !selectedElement) return;
 
-        const iframeDoc = iframe?.contentDocument;
-        if (!iframeDoc) return;
+        if (!shadowRoot) return;
+
+        // Check for circular reference - can't paste element as sibling of its own descendant
+        if (clipboardElement.contains(selectedElement)) {
+            console.warn('Cannot paste: clipboard element contains the target element');
+            return;
+        }
 
         const newElement = clipboardElement.cloneNode(true);
         newElement.classList.remove('looks-good-selected', 'looks-good-hover', 'looks-good-dragging');
 
         selectedElement.parentNode?.insertBefore(newElement, selectedElement.nextSibling);
-        setupDragEvents(newElement, iframeDoc);
+        setupDragEvents(newElement, shadowRoot);
 
         if (isCut) {
-            const originalElement = iframeDoc.querySelector('.looks-good-dragging');
+            const originalElement = shadowRoot.querySelector('.looks-good-dragging');
             if (originalElement) {
                 originalElement.remove();
             }

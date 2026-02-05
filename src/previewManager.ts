@@ -663,7 +663,7 @@ export class PreviewManager {
   
   <div class="preview-container">
     <div class="preview-frame" id="preview-frame">
-      <iframe id="preview-iframe" sandbox="allow-same-origin allow-scripts"></iframe>
+      <div id="preview-content"></div>
     </div>
     
     <div class="css-panel" id="css-panel" style="display: ${config.showCssPanel ? 'flex' : 'none'};">
