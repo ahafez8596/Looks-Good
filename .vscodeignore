@@ -20,6 +20,7 @@ webpack.config.js
 
 # Test files
 test.html
+images/
 **/*.test.ts
 **/*.test.js
 
